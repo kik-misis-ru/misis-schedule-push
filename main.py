@@ -9,7 +9,7 @@ import random
 from dotenv import load_dotenv
 import uuid
 import time
-from utils import get_subs_for_push, get_data_for_push
+from utils import Days, Bells, get_subs_for_push, get_data_for_push
 # mongo_repository = MongoRepository()
 import asyncio
 
@@ -23,13 +23,18 @@ client_id_secret_id_base64 = os.getenv("CLIENT_ID_CLIENT_SECRET_BASE64")
 project_id_sber_code=os.getenv("PROJECT_ID_SBER_CODE")
 time_zone_diff = os.getenv("TIME_ZONE_DIFF")
 
+status_code_success = "1"
+status_code_not_found = "-1"
+status_code_error= "-2"
 
-SECONDS_IN_HOUR = 3600
+
 
 
 async def push(data, is_next_day):
 	sub = data["sub"]
 	templateData = get_data_for_push(sub)
+	if templateData["status"] != status_code_success:
+		return 
 	start_time = datetime.today()
 	start_date = datetime.today()
 	end_date = start_date
@@ -43,7 +48,6 @@ async def push(data, is_next_day):
 
 	send_push(sub, templateData, start_time, finish_time, start_date, end_date)
 
-
 async def run_push():
 	while(True):
 		start = datetime.now()
@@ -56,39 +60,37 @@ async def run_push():
 		for sub in subs:
 			await push(sub, is_next_day)
 		delta = datetime.now() - start
-		time.sleep(SECONDS_IN_HOUR - delta.total_seconds())
+		print("time:",3600 - delta.total_seconds())
+		print("time:",datetime.now())
+		time.sleep(3600 - delta.total_seconds())
 
-#отправка пуша
+
 def send_push(sub: str, templateData: PushTemplate, start_time: datetime, finish_time: datetime, start_date: date, end_date:date):
-	headers={
-		'Authorization': 'Bearer '+get_access_token(), 
-		'Content-type': 'application/json', 'RqUID': get_guid()
-	}
-	data = get_body_for_send_push(sub, templateData, start_time, finish_time, start_date, end_date)
-	response = requests.post(send_push_url, data=json.dumps(data), headers=headers)
+    data = get_body_for_send_push(sub, templateData, start_time, finish_time, start_date, end_date)
+    headers={'Authorization': 'Bearer '+get_auth_token(), 'Content-type': 'application/json', 'RqUID': get_guid()}
 
-#получение access_token
-def get_access_token():
-    headers={
-		'Authorization': 'Basic '+client_id_secret_id_base64, 
-		'Content-type': 'application/x-www-form-urlencoded', 
-		'RqUID': get_guid()
-		}
-    data = {
-			'scope': 'SMART_PUSH'
-			}
+    response = requests.post(send_push_url, data=json.dumps(data), headers=headers)
+    
+    print(response.text)
+
+def get_auth_token():
+    headers={'Authorization': 'Basic '+client_id_secret_id_base64, 'Content-type': 'application/x-www-form-urlencoded', 'RqUID': get_guid()}
+    data={'scope': 'SMART_PUSH'}
     response = requests.post(auth_sber_url, data=data, headers=headers)
+    print(response.json()['access_token'])
     return response.json()['access_token']
     
 
 
-#генерирование guid
 def get_guid():
 	guid = str(uuid.uuid4())
 	return guid
 
-#формирование body для  отправки пуша
 def get_body_for_send_push(sub: str, templateData: PushTemplate, start_time: datetime, finish_time: datetime, start_date: date, end_date:date):
+	print("start_time",start_time.strftime("%H:%M:%S"))
+	print("finish_time", finish_time.strftime("%H:%M:%S"))
+	print("start_date", start_time.strftime("%Y-%m-%d"))
+	print("end_date", end_date.strftime("%Y-%m-%d"))
 	body = {
 	"requestPayload": {
 		"protocolVersion": "V1",
@@ -119,18 +121,18 @@ def get_body_for_send_push(sub: str, templateData: PushTemplate, start_time: dat
 							},
 							"bodyValues": {
 							    "day": templateData["day"],
-								"count_lessons": str(templateData["count_lesson"]),
+								"count_lessons": str(templateData["count_lessons"]),
 								"lesson": templateData["lesson"],
                                 "start_time":templateData["start_time"]
 							},
 							"mobileAppParameters": {
 							},
 							"timeFrame": {
-							 	"startTime": start_time.strftime("%H:%M:%S"), 
-							 	"finishTime": finish_time.strftime("%H:%M:%S"), 
+							 	"startTime": start_time.strftime("%H:%M:%S"), #(datetime.now()+timedelta(minutes=1)).strftime("%H:%M:%S"),
+							 	"finishTime": finish_time.strftime("%H:%M:%S"), #(datetime.now()+timedelta(minutes=2)).strftime("%H:%M:%S"), 
 							 	"timeZone": "GMT+03:00",
-							 	"startDate": start_date.strftime("%Y-%m-%d"), 
-							 	"endDate": end_date.strftime("%Y-%m-%d"), 
+							 	"startDate": start_date.strftime("%Y-%m-%d"), #'2021-11-12',
+							 	"endDate": end_date.strftime("%Y-%m-%d"), #'2021-11-12',
 							 }
 						}
 					}
