@@ -7,9 +7,16 @@ class PushTemplate:
     day: str
     count_lesson: str
     lesson: str
+    start_lesson_info: str
     start_time: str
 
-class UserPush():
-    sub: str
-    hour: int
-    minute: int
+class TimeFrame:
+    def __init__(self, start_time, finish_time, start_date, end_date):
+        self.start_time = start_time
+        self.start_date = start_date
+        self.finish_time = finish_time
+        self.end_date = end_date
+    start_time : str
+    finish_time : str 
+    start_date : str
+    end_date : str
