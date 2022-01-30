@@ -43,7 +43,6 @@ def get_subs_for_push(hour: int):
             return {"status": status_code_error}
         response = json.dumps(req.json(), indent=2, ensure_ascii=False)
         response_json = json.loads(response)
-        print(response_json)
         response_json["status"] = status_code_success
         return response_json
     except requests.exceptions.ConnectionError:

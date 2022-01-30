@@ -1,3 +1,4 @@
+from decimal import DivisionByZero
 import re
 import requests
 from datetime import date, datetime, timedelta
@@ -22,7 +23,7 @@ auth_sber_url = os.getenv("AUTH_SBER_URL")
 client_id_secret_id_base64 = os.getenv("CLIENT_ID_CLIENT_SECRET_BASE64")
 project_id_sber_code = os.getenv("PROJECT_ID_SBER_CODE")
 time_zone_diff = os.getenv("TIME_ZONE_DIFF")
-logging.basicConfig(filename="/logs/mir-misis-push-local.log", level=logging.INFO)
+logging.basicConfig(filename="/logs/mir-misis-push.log", level=logging.INFO)
 
 SECONDS_IN_HOUR = 3600
 
@@ -34,24 +35,11 @@ async def push(data, is_next_day):
     if templateData["status"] != status_code_success:
         return 
     time_frame = get_time_frame(is_next_day, data["hour"], data["minute"])
-    send_push(sub, templateData, time_frame)
+    try:
+        send_push(sub, templateData, time_frame)
+    except DivisionByZero:
+        logging.error(f"Error with sending push for sub: {sub}")
 
-
-async def run_push():
-    while True:
-        start = datetime.now()
-        push_hour = datetime.now().hour + 1 +int(time_zone_diff)
-        is_next_day = False
-        if push_hour > 23:
-            push_hour = push_hour % 24
-            is_next_day = True
-        logging.info(f"Start sending push for hour: {push_hour}")
-        subs = get_subs_for_push(push_hour)
-        if subs["status"] == status_code_success:
-            for sub in subs["data"]:
-                await push(sub, is_next_day)
-        delta = datetime.now() - start
-        time.sleep(SECONDS_IN_HOUR - delta.total_seconds())
 
 
 def send_push(sub: str, templatedata: PushTemplate, time_frame: TimeFrame):
@@ -60,7 +48,6 @@ def send_push(sub: str, templatedata: PushTemplate, time_frame: TimeFrame):
 		'Authorization' : 'Bearer ' + get_auth_token(),
 		'Content-type': 'application/json', 'RqUID': get_guid()
 		}
-	return
 	response = requests.post(send_push_url, data = json.dumps(data), headers = headers)
 	logging.info(f'Push for sub: {sub} sended.\nResponse text:\n{response.text}\n')
 
@@ -135,3 +122,24 @@ def get_body_for_send_push(sub: str, templateData: PushTemplate, time_frame: Tim
 	}
 	}
 	return body
+
+
+async def run_push():
+    while True:
+        try:
+            start = datetime.now()
+            push_hour = datetime.now().hour + 1 +int(time_zone_diff)
+            is_next_day = False
+            if push_hour > 23:
+                push_hour = push_hour % 24
+                is_next_day = True
+            logging.info(f"Start sending push for hour: {push_hour}")
+            subs = get_subs_for_push(push_hour)
+            if subs["status"] == status_code_success:
+                for sub in subs["data"]:
+                   await push(sub, is_next_day)
+        except DivisionByZero:
+            logging.error(f"Error with sending pushes for hour: {push_hour}")
+        delta = datetime.now() - start
+        time.sleep(SECONDS_IN_HOUR - delta.total_seconds())
+
